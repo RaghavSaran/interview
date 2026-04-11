@@ -157,16 +157,20 @@
       padding: 0.85rem 3rem;
       border-radius: 99px;
       border: none;
-      background: #6366f1;
-      color: #fff;
+      background: #333;
+      color: #666;
       font-size: 1.1rem;
       letter-spacing: 0.06em;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      cursor: not-allowed;
+      transition: background 0.35s, color 0.35s, transform 0.1s;
     }
-    .btn-primary:hover { background: #4f46e5; }
-    .btn-primary:active { transform: scale(0.97); }
-    .btn-primary:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .btn-primary.ready {
+      background: #16a34a;
+      color: #fff;
+      cursor: pointer;
+    }
+    .btn-primary.ready:hover { background: #15803d; }
+    .btn-primary.ready:active { transform: scale(0.97); }
 
     /* Mobile arrow buttons */
     #mobile-nav {
@@ -203,7 +207,7 @@
   <div id="start-screen">
     <h1>Word Reader</h1>
     <p>Three words at a time. Navigate with your arrow keys — or the buttons below on mobile.</p>
-    <button class="btn-primary" id="start-btn" onclick="startReading()">Start</button>
+    <button class="btn-primary" id="start-btn" onclick="startReading()" disabled>Checking…</button>
     <div id="status"></div>
   </div>
 
@@ -242,33 +246,51 @@
     el.className = isError ? "error" : "";
   }
 
-  async function startReading() {
+  // Auto-fetch on page load
+  window.addEventListener("DOMContentLoaded", prefetch);
+
+  async function prefetch() {
     const btn = document.getElementById("start-btn");
+    btn.textContent = "Checking…";
     btn.disabled = true;
-    setStatus("Loading from Google Doc…");
+    btn.classList.remove("ready");
+    setStatus("");
 
     try {
       const res = await fetch(APPS_SCRIPT_URL);
-      if (!res.ok) throw new Error("Network response was not ok");
+      if (!res.ok) throw new Error("Network error");
       const data = await res.json();
       const raw = data.text || "";
-
-      // Split into words, strip blanks
       const words = raw.split(/\s+/).filter(w => w.length > 0);
-      if (words.length === 0) throw new Error("Document appears to be empty.");
 
-      // Group into chunks of CHUNK words
+      if (words.length === 0) {
+        btn.textContent = "Doc is empty";
+        setStatus("The Google Doc has no content yet.", true);
+        return;
+      }
+
+      // Pre-build chunks so Start is instant
       chunks = [];
       for (let i = 0; i < words.length; i += CHUNK) {
         chunks.push(words.slice(i, i + CHUNK).join(" "));
       }
-      idx = 0;
-      showReader();
-    } catch (e) {
+
+      btn.textContent = "Start";
       btn.disabled = false;
-      setStatus("Could not load the document. Check the Apps Script URL and try again.", true);
+      btn.classList.add("ready");
+      setStatus(words.length + " words ready");
+
+    } catch (e) {
+      btn.textContent = "Could not load";
+      setStatus("Failed to reach the Google Doc. Check the Apps Script URL.", true);
       console.error(e);
     }
+  }
+
+  function startReading() {
+    if (chunks.length === 0) return;
+    idx = 0;
+    showReader();
   }
 
   function showReader() {
