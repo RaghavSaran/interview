@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Word by Word Reader</title>
+  <title>Block Reader</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -12,56 +12,17 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
+      padding-top: 2rem;
       background: #0f0f0f;
       font-family: 'Segoe UI', system-ui, sans-serif;
       color: #f0f0f0;
       user-select: none;
-      transition: background 1.2s ease;
     }
 
-    /* ── UPDATE BADGE top-right ── */
-    #update-badge {
-      position: fixed;
-      top: 1.2rem; right: 1.2rem;
-      background: #16a34a;
-      color: #fff;
-      font-size: 0.8rem;
-      letter-spacing: 0.04em;
-      padding: 0.45rem 1.1rem;
-      border-radius: 99px;
-      cursor: pointer;
-      display: none;
-      z-index: 999;
-      border: none;
-      transition: background 0.2s;
-    }
-    #update-badge:hover { background: #15803d; }
-
-    /* ── PARAGRAPH INDEX top-left ── */
-    #para-index {
-      position: fixed;
-      top: 1rem; left: 1rem;
-      display: none;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 100;
-    }
-    .pi-para { display: flex; flex-direction: column; gap: 3px; }
-    .pi-line {
-      width: 26px; height: 4px;
-      border-radius: 3px;
-      background: #2a2a2a;
-      transition: background 0.35s ease;
-    }
-    .pi-line.done   { background: #ef4444; }
-    .pi-line.active { background: #facc15; box-shadow: 0 0 4px #facc1566; }
-    .pi-line.ahead  { background: #22c55e; }
-
-    /* ── SHELL ── */
     #app {
       width: 100%;
-      max-width: 700px;
+      max-width: 900px;
       padding: 2rem;
       display: flex;
       flex-direction: column;
@@ -69,146 +30,270 @@
       gap: 2rem;
     }
 
-    /* ── START SCREEN ── */
-    #start-screen { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; text-align: center; }
-    #start-screen h1 { font-size: 2rem; font-weight: 300; letter-spacing: 0.08em; color: #e0e0e0; }
-    #start-screen p  { font-size: 1rem; color: #888; max-width: 360px; line-height: 1.6; }
-
-    /* ── READER SCREEN ── */
-    #reader-screen { display: none; width: 100%; flex-direction: column; align-items: center; gap: 1.5rem; }
-
-    #progress-wrap { width: 100%; height: 3px; background: #2a2a2a; border-radius: 99px; overflow: hidden; }
-    #progress-bar  { height: 100%; background: linear-gradient(90deg,#6366f1,#a78bfa); border-radius: 99px; transition: width 0.3s ease; width: 0%; }
-
-    /* Note area above divider */
-    #note-area {
-      width: 100%;
-      min-height: 2rem;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding: 0 0.5rem 0.5rem;
-    }
-    #note-text {
-      color: #4a4a4a;
-      font-style: italic;
-      text-align: center;
-      line-height: 1.45;
-      max-width: 100%;
-      word-break: break-word;
-      font-size: clamp(0.6rem, 1.6vw, 0.85rem);
-      transition: opacity 0.3s;
-    }
-
-    /* Divider */
-    #divider { width: 100%; height: 1px; background: #222; }
-
-    /* Word box */
-    #word-box {
-      width: 100%;
-      min-height: 160px;
+    /* ── Start screen ── */
+    #start-screen {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 0.45rem;
+      gap: 1.5rem;
+      text-align: center;
+    }
+    #start-screen h1 { font-size: 2rem; font-weight: 300; letter-spacing: 0.08em; color: #e0e0e0; }
+    #start-screen p  { font-size: 1rem; color: #888; max-width: 360px; line-height: 1.6; }
+
+    /* ── Reader screen ── */
+    #reader-screen { display: none; width: 100%; flex-direction: column; align-items: center; gap: 2rem; }
+
+    /* ── Karaoke box ── */
+    #word-box {
+      width: 100%;
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
       border-radius: 20px;
-      padding: 2rem 2.5rem;
-      overflow: hidden;
-      transition: background 1s ease, border-color 1s ease;
+      padding: 1.8rem 2rem;
+      overflow-y: auto;
+      max-height: 420px;
     }
 
-    .chunk-row {
-      text-align: center;
+    #words {
+      width: 100%;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    #words.fade { opacity: 0; transform: scale(0.98); }
+
+    .block-title {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #e0e0e0;
+      letter-spacing: 0.03em;
+      margin-bottom: 1rem;
+    }
+
+    .block-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .block-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      font-size: 1.1rem;
       font-weight: 300;
-      letter-spacing: 0.04em;
-      line-height: 1.4;
-      transition: color 0.18s, font-size 0.18s;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .chunk-row.active { font-size: clamp(1.8rem, 4.5vw, 2.8rem); color: #f0f0f0; }
-    .chunk-row.near   { font-size: clamp(1rem,   2.5vw, 1.5rem);  color: #383838; }
-    .chunk-row.far    { font-size: clamp(0.8rem,  1.8vw, 1.1rem); color: #262626; }
-    .chunk-row.wait-active {
-      font-size: clamp(1.8rem, 4.5vw, 2.8rem);
-      color: #facc15;
-      letter-spacing: 0.18em;
-      font-weight: 400;
-    }
-    .chunk-row.wait-near {
-      font-size: clamp(1rem, 2.5vw, 1.5rem);
-      color: #4a3e10;
-      letter-spacing: 0.1em;
+      color: #c0c0c0;
+      line-height: 1.55;
     }
 
-    #counter { font-size: 0.82rem; color: #444; letter-spacing: 0.06em; }
+    .block-bullets li .bullet-num {
+      color: #6366f1;
+      font-size: 1.1rem;
+      font-weight: 500;
+      flex-shrink: 0;
+      min-width: 1.4rem;
+    }
 
+    .sub-items {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-top: 0.4rem;
+      padding-left: 0.4rem;
+    }
+
+    .sub-items li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 300;
+      color: #888;
+      line-height: 1.5;
+    }
+
+    .sub-items li::before {
+      content: '○';
+      color: #555;
+      font-size: 0.75rem;
+      margin-top: 0.2em;
+      flex-shrink: 0;
+    }
+
+    /* ── Progress bar ── */
+    #progress-wrap {
+      width: 100%;
+      height: 3px;
+      background: #2a2a2a;
+      border-radius: 99px;
+      overflow: visible;
+      position: relative;
+      margin: 1.4rem 0;
+    }
+    #progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #a78bfa);
+      border-radius: 99px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    .milestone-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #facc15;
+      box-shadow: 0 0 4px #facc1599;
+      pointer-events: none;
+    }
+    .milestone-label {
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 0.62rem;
+      color: #facc15aa;
+      white-space: nowrap;
+      pointer-events: none;
+      max-width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .milestone-label.above { top: -1.6rem; }
+    .milestone-label.below { bottom: -1.6rem; }
+
+    /* ── Counter ── */
+    #counter { font-size: 0.85rem; color: #555; letter-spacing: 0.05em; }
+
+    /* ── Nav hint ── */
     #nav-hint { display: flex; gap: 1.5rem; align-items: center; }
-    .hint-key  { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #555; }
+    .hint-key { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #666; }
     .key-badge {
-      background: #222; border: 1px solid #383838; border-bottom: 3px solid #383838;
-      border-radius: 6px; padding: 3px 10px; font-size: 0.75rem; color: #888; font-family: monospace;
+      background: #222;
+      border: 1px solid #383838;
+      border-bottom: 3px solid #383838;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      color: #aaa;
+      font-family: monospace;
     }
 
+    /* ── Restart button ── */
     #restart-btn {
-      display: none; padding: 0.7rem 2.2rem; border-radius: 99px;
-      border: 1px solid #6366f1; background: transparent; color: #a78bfa;
-      font-size: 0.95rem; letter-spacing: 0.06em; cursor: pointer; transition: background 0.2s;
+      display: none;
+      padding: 0.75rem 2.5rem;
+      border-radius: 99px;
+      border: 1px solid #6366f1;
+      background: transparent;
+      color: #a78bfa;
+      font-size: 1rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
     }
     #restart-btn:hover { background: #6366f120; color: #c4b5fd; }
 
-    #status { font-size: 0.9rem; color: #555; text-align: center; }
+    /* ── Notes box ── */
+    #notes-box {
+      width: 100%;
+      min-height: 360px;
+      max-height: 660px;
+      background: transparent;
+      border: 1px solid #2a2a2a;
+      border-radius: 20px;
+      padding: 1.2rem 1.5rem;
+      overflow-y: auto;
+      color: #f5f5f5;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    /* ── Update button ── */
+    #update-btn {
+      display: none;
+      position: fixed;
+      top: 1.2rem;
+      right: 1.2rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 99px;
+      border: none;
+      background: #16a34a;
+      color: #fff;
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      box-shadow: 0 2px 12px #16a34a55;
+      transition: background 0.2s, transform 0.1s;
+      z-index: 999;
+    }
+    #update-btn:hover { background: #15803d; }
+    #update-btn:active { transform: scale(0.96); }
+
+    /* ── Status / primary button ── */
+    #status { font-size: 0.9rem; color: #666; text-align: center; }
     #status.error { color: #f87171; }
 
     .btn-primary {
-      padding: 0.85rem 3rem; border-radius: 99px; border: none;
-      background: #2a2a2a; color: #555; font-size: 1.1rem;
-      letter-spacing: 0.06em; cursor: not-allowed;
+      padding: 0.85rem 3rem;
+      border-radius: 99px;
+      border: none;
+      background: #333;
+      color: #666;
+      font-size: 1.1rem;
+      letter-spacing: 0.06em;
+      cursor: not-allowed;
       transition: background 0.35s, color 0.35s, transform 0.1s;
     }
     .btn-primary.ready { background: #16a34a; color: #fff; cursor: pointer; }
     .btn-primary.ready:hover { background: #15803d; }
     .btn-primary.ready:active { transform: scale(0.97); }
 
+    /* ── Mobile nav ── */
     #mobile-nav { display: none; gap: 1.5rem; }
     .arrow-btn {
-      width: 56px; height: 56px; border-radius: 50%;
-      border: 1px solid #333; background: #1a1a1a; color: #aaa;
-      font-size: 1.4rem; cursor: pointer;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #aaa;
+      font-size: 1.4rem;
+      cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.2s, color 0.2s;
     }
     .arrow-btn:hover { background: #252525; color: #fff; }
-    .arrow-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+    .arrow-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
     @media (hover: none) and (pointer: coarse) {
       #mobile-nav { display: flex; }
-      #nav-hint   { display: none; }
+      #nav-hint { display: none; }
     }
   </style>
 </head>
 <body>
-
-<button id="update-badge" onclick="applyUpdate()">&#9650; New content — Update?</button>
-<div id="para-index"></div>
-
+<button id="update-btn" onclick="applyUpdate()">New content. Update?</button>
 <div id="app">
 
+  <!-- START SCREEN -->
   <div id="start-screen">
-    <h1>Word Reader</h1>
-    <p>Three words at a time. Use arrow keys to navigate.</p>
+    <h1>Block Reader</h1>
+    <p>One block at a time. Navigate with your arrow keys.</p>
     <button class="btn-primary" id="start-btn" onclick="startReading()" disabled>Checking…</button>
     <div id="status"></div>
   </div>
 
+  <!-- READER SCREEN -->
   <div id="reader-screen">
+    <div id="word-box"><div id="words"></div></div>
     <div id="progress-wrap"><div id="progress-bar"></div></div>
-    <div id="note-area"><div id="note-text"></div></div>
-    <div id="divider"></div>
-    <div id="word-box"></div>
     <div id="counter"></div>
     <div id="nav-hint">
       <div class="hint-key"><span class="key-badge">←</span> back</div>
@@ -219,338 +304,331 @@
       <button class="arrow-btn" id="next-btn" onclick="go(1)">&#8594;</button>
     </div>
     <button id="restart-btn" onclick="restart()">Start over</button>
+    <div id="notes-box"></div>
   </div>
 
 </div>
-
 <script>
-// ════════════════════════════════════
-//  CONFIG
-// ════════════════════════════════════
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJ2QtTJARx-j7RaGTukC9ibdpmwCRc7UPM7Hkg7c4z-54g6WnNRtMdltaco3Uf_3VujQ/exec";
-const CHUNK        = 3;
-const POLL_MS      = 5000;
-const SAVE_DELAY   = 10000;
-const WAIT_TEXT    = "<<<WAIT>>>";
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjl4d6cVqwnDbCiTOPaQwpm6dfCGp5J7ATjFatOvmnjmOAlVnsi1BO3QkmsORCCk2n/exec";
 
-// ════════════════════════════════════
-//  STATE
-// ════════════════════════════════════
-let chunks        = [];
-let idx           = 0;
-let pendingChunks = null;
-let lastRawClean  = "";
-let saveTimer     = null;
+  let blocks = [];        // array of { title, bullets: [] }
+  let milestonePcts = []; // % left position for each block boundary dot
+  let blockPcts = [];     // % progress bar fill for each block index
+  let idx = 0;
+  let lastRawText = "";
+  let karaokeRaw = "";
+  let pendingBlocks = [];
+  let pendingMilestones = [];
+  let pendingBlockPcts = [];
 
-// ════════════════════════════════════
-//  BUILD ROWS (5 sliding rows)
-// ════════════════════════════════════
-const wordBox  = document.getElementById("word-box");
-const rowKeys  = ["far","near","active","near","far"];
-const rows     = rowKeys.map(cls => {
-  const d = document.createElement("div");
-  d.className = "chunk-row " + cls;
-  wordBox.appendChild(d);
-  return d;
-});
-
-// ════════════════════════════════════
-//  PARSE DOC  (Changes 3, 6, 7)
-// ════════════════════════════════════
-function parseDoc(raw) {
-  // Strip position marker ~ from display
-  const clean = raw.replace(/~/g, "");
-  // Split into paragraphs
-  const paras = clean.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
-  const result = [];
-
-  paras.forEach((paraText, pIdx) => {
-    // Change 6: split at xxxx
-    let karaokeText = paraText;
-    let noteText    = "";
-    const noteMatch = paraText.match(/xxxx/i);
-    if (noteMatch) {
-      const pos   = paraText.indexOf(noteMatch[0]);
-      karaokeText = paraText.slice(0, pos).trim();
-      noteText    = paraText.slice(pos + 4).trim();
-    }
-    if (!karaokeText.length) return;
-
-    const words = karaokeText.split(/\s+/).filter(w => w.length > 0);
-    const batches = [];
-    for (let i = 0; i < words.length; i += CHUNK) {
-      batches.push(words.slice(i, i + CHUNK).join(" "));
-    }
-
-    batches.forEach((text, lIdx) => {
-      result.push({
-        text,
-        note:             noteText,
-        isWait:           false,
-        paraIdx:          pIdx,
-        lineIdx:          lIdx,
-        totalLines:       batches.length
-      });
-    });
-
-    // Change 3: inject WAIT between paragraphs
-    if (pIdx < paras.length - 1) {
-      result.push({ text: WAIT_TEXT, note: "", isWait: true, paraIdx: pIdx, lineIdx: -1, totalLines: 0 });
-    }
-  });
-
-  return result;
-}
-
-// ════════════════════════════════════
-//  SAVED POSITION  (Change 5)
-//  ~ marker in doc tells us where user left off
-// ════════════════════════════════════
-function findSavedIdx(raw, parsedChunks) {
-  const tildePos = raw.indexOf("~");
-  if (tildePos === -1) return 0;
-  // Count non-wait batches before tilde's word position
-  const textBefore = raw.slice(0, tildePos).replace(/xxxx[\s\S]*?(?=\n|$)/gi,"");
-  const wordsBefore = textBefore.split(/\s+/).filter(w => w.length > 0).length;
-  const targetBatch = Math.floor(wordsBefore / CHUNK);
-  let counted = 0;
-  for (let i = 0; i < parsedChunks.length; i++) {
-    if (parsedChunks[i].isWait) continue;
-    if (counted >= targetBatch) return i;
-    counted++;
+  function setStatus(msg, isError = false) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = isError ? "error" : "";
   }
-  return 0;
-}
 
-function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(doSave, SAVE_DELAY);
-}
+  function splitDoc(raw) {
+    const lines = raw.split(/\n/);
+    const splitIdx = lines.findIndex(l => parseLine(l).text === 'xxxx');
+    if (splitIdx === -1) return { karaoke: raw, notes: "" };
+    return {
+      karaoke: lines.slice(0, splitIdx).join("\n"),
+      notes: lines.slice(splitIdx + 1).join("\n").trim()
+    };
+  }
 
-async function doSave() {
-  // Count how many non-wait batches we've gone through
-  let batchNum = 0;
-  for (let i = 0; i < idx; i++) { if (!chunks[i].isWait) batchNum++; }
-  try {
-    await fetch(APPS_SCRIPT_URL + "?action=savepos&pos=" + batchNum);
-  } catch(e) { /* silent fail */ }
-}
+  function setNotesBox(text) {
+    const cleaned = text.split(/\n/)
+      .map(l => parseLine(l.trim()).text)
+      .filter(l => l.length > 0)
+      .join("\n");
+    document.getElementById("notes-box").textContent = cleaned;
+  }
 
-// ════════════════════════════════════
-//  FETCH & POLL  (Change 4)
-// ════════════════════════════════════
-window.addEventListener("DOMContentLoaded", prefetch);
+  function parseLine(raw) {
+    const m = raw.match(/^(\d+|p)\|(.*)$/);
+    if (!m) return { level: 'p', text: raw.trim() };
+    return { level: m[1] === 'p' ? 'p' : parseInt(m[1]), text: m[2].trim() };
+  }
 
-async function fetchRaw() {
-  const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now());
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const data = await res.json();
-  return data.text || "";
-}
+  function buildBlocks(karaokeText) {
+    // Split on ~~~~ separators
+    const lines = karaokeText.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
+    // Some lines may have ~~~~ appended after \r — split those out
+    const expanded = [];
+    for (const line of lines) {
+      const parts = line.split(/\r/).map(p => p.trim()).filter(p => p.length > 0);
+      expanded.push(...parts);
+    }
+    console.log("RAW LINES:", expanded);
 
-async function prefetch() {
-  const btn = document.getElementById("start-btn");
-  btn.textContent = "Checking…";
-  btn.disabled = true;
-  btn.classList.remove("ready");
-  setStatus("");
+    const rawBlocks = [];
+    let current = [];
+    for (const line of expanded) {
+      const { level, text } = parseLine(line);
+      if (level === 'p') {
+        // p| line = block title, starts a new block
+        if (current.length > 0) rawBlocks.push(current);
+        // strip leading "1. " / "2. " etc from title
+        current = [{ level: 'title', text: text.replace(/^\d+\.\s*/, "") }];
+      } else if (level === 0) {
+        // filled-dot sub-bullet
+        current.push({ level: 0, text });
+      } else if (level === 1) {
+        // hollow-dot sub-sub-bullet
+        current.push({ level: 1, text });
+      }
+    }
+    if (current.length > 0) rawBlocks.push(current);    if (current.length > 0) rawBlocks.push(current);
 
-  try {
-    const raw    = await fetchRaw();
-    lastRawClean = raw.replace(/~/g,"");
-    const parsed = parseDoc(raw);
+    const built = [];
+    let totalWords = 0;
 
-    if (!parsed.length) {
-      btn.textContent = "Doc is empty";
-      setStatus("The Google Doc has no content yet.", true);
-      return;
+    for (const block of rawBlocks) {
+      if (block.length === 0) continue;
+
+      const title = block[0].text;
+      const bullets = [];
+      let currentSub = null;
+      let subNum = 1;
+
+      for (const entry of block.slice(1)) {
+        if (entry.level === 0) {
+          currentSub = { num: subNum++, text: entry.text, subItems: [] };
+          bullets.push(currentSub);
+        } else if (entry.level === 1 && currentSub) {
+          currentSub.subItems.push(entry.text);
+        }
+      }
+
+      const wordCount = block.map(e => e.text).join(" ").split(/\s+/).filter(w => w.length > 0).length;
+      totalWords += wordCount;
+      built.push({ title, bullets, wordCount });
     }
 
-    chunks = parsed;
-    idx    = findSavedIdx(raw, chunks);
-    const wc = chunks.filter(c => !c.isWait).length * CHUNK;
-    btn.textContent = "Start";
-    btn.disabled    = false;
-    btn.classList.add("ready");
-    setStatus("~" + wc + " words ready" + (idx > 0 ? " · resuming from batch " + (idx+1) : ""));
+    // Milestone dots: placed at cumulative word-count boundaries between blocks
+    // position = cumulative words up to end of block / total words * 100
+    const milestones = [];
+    const cumulativeWordPcts = [];
+    let cumulative = 0;
+    for (let i = 0; i < built.length; i++) {
+      cumulative += built[i].wordCount;
+      const pct = (cumulative / totalWords) * 100;
+      cumulativeWordPcts.push(pct);
+      // include ALL blocks as milestone dots, including the last
+      milestones.push({ pct, title: built[i].title });
+    }
 
-    setInterval(pollForUpdates, POLL_MS);
-
-  } catch(e) {
-    btn.textContent = "Could not load";
-    setStatus("Failed to reach the Google Doc.", true);
-    console.error(e);
+    return { built, milestones, totalWords, cumulativeWordPcts };
   }
-}
 
-async function pollForUpdates() {
-  try {
-    const raw   = await fetchRaw();
-    const clean = raw.replace(/~/g,"");
-    if (clean === lastRawClean) return;
+  window.addEventListener("DOMContentLoaded", prefetch);
 
-    const parsed = parseDoc(clean);
-    if (!parsed.length) return;
+  async function prefetch() {
+    const btn = document.getElementById("start-btn");
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    btn.classList.remove("ready");
+    setStatus("");
 
-    pendingChunks = parsed;
-    lastRawClean  = clean;
-    document.getElementById("update-badge").style.display = "block";
-  } catch(e) { /* silent */ }
-}
+    try {
+      const res = await fetch(APPS_SCRIPT_URL);
+      if (!res.ok) throw new Error("Network error");
+      const data = await res.json();
+      const raw = data.text || "";
+      console.log("FULL RAW:\n", data.text);
+      const { karaoke, notes } = splitDoc(raw);
 
-function applyUpdate() {
-  if (!pendingChunks) return;
-  chunks = pendingChunks;
-  pendingChunks = null;
-  document.getElementById("update-badge").style.display = "none";
-  if (idx >= chunks.length) idx = Math.max(0, chunks.length - 1);
-  if (document.getElementById("reader-screen").style.display !== "none") {
-    buildParaIndex();
+      if (karaoke.trim().length === 0) {
+        btn.textContent = "Doc is empty";
+        setStatus("The Google Doc has no content yet.", true);
+        return;
+      }
+
+      const { built, milestones, totalWords, cumulativeWordPcts } = buildBlocks(karaoke);
+      blocks = built;
+      milestonePcts = milestones;
+      blockPcts = cumulativeWordPcts;
+      karaokeRaw = karaoke;
+      lastRawText = raw;
+
+      if (notes) setNotesBox(notes);
+
+      btn.textContent = "Start";
+      btn.disabled = false;
+      btn.classList.add("ready");
+      setStatus(totalWords + " words · " + blocks.length + " blocks");
+
+      startPolling();
+    } catch (e) {
+      btn.textContent = "Could not load";
+      setStatus("Failed to reach the Google Doc. Check the Apps Script URL.", true);
+      console.error(e);
+    }
+  }
+
+  function startPolling() {
+    setInterval(async () => {
+      try {
+        const res = await fetch(APPS_SCRIPT_URL);
+        if (!res.ok) return;
+        const data = await res.json();
+        const raw = data.text || "";
+        if (raw === lastRawText) return;
+
+        const { karaoke, notes } = splitDoc(raw);
+        lastRawText = raw;
+
+        setNotesBox(notes);
+
+        if (karaoke !== karaokeRaw) {
+          const { built, milestones, cumulativeWordPcts } = buildBlocks(karaoke);
+          pendingBlocks = built;
+          pendingMilestones = milestones;
+          pendingBlockPcts = cumulativeWordPcts;
+
+          const oldCount = karaokeRaw.split(/\s+/).filter(w => w.length > 0).length;
+          const newCount = karaoke.split(/\s+/).filter(w => w.length > 0).length;
+          const diff = newCount - oldCount;
+          const label = diff === 0
+            ? "New Content. Updated."
+            : diff > 0
+              ? `New Content. ${diff} extra words.`
+              : `New Content. ${Math.abs(diff)} less words.`;
+
+          const updateBtn = document.getElementById("update-btn");
+          updateBtn.textContent = label;
+          updateBtn.style.display = "block";
+        }
+      } catch (_) {}
+    }, 1500);
+  }
+
+  function applyUpdate() {
+    blocks = pendingBlocks;
+    milestonePcts = pendingMilestones;
+    blockPcts = pendingBlockPcts;
+    karaokeRaw = splitDoc(lastRawText).karaoke;
+    pendingBlocks = [];
+    pendingMilestones = [];
+    pendingBlockPcts = [];
+    document.getElementById("update-btn").style.display = "none";
+
+    const readerVisible = document.getElementById("reader-screen").style.display === "flex";
+    if (readerVisible) {
+      idx = Math.min(idx, blocks.length - 1);
+      renderMilestones();
+      render();
+    }
+  }
+
+  function startReading() {
+    if (blocks.length === 0) return;
+    idx = 0;
+    document.getElementById("start-screen").style.display = "none";
+    const rs = document.getElementById("reader-screen");
+    rs.style.display = "flex";
+    renderMilestones();
     render();
   }
-}
 
-// ════════════════════════════════════
-//  PARA INDEX  (Change 1)
-// ════════════════════════════════════
-function buildParaIndex() {
-  const container = document.getElementById("para-index");
-  container.innerHTML = "";
+  function renderMilestones() {
+    const wrap = document.getElementById("progress-wrap");
+    wrap.querySelectorAll(".milestone-dot, .milestone-label").forEach(d => d.remove());
+    milestonePcts.forEach(({ pct, title }, i) => {
+      const dot = document.createElement("div");
+      dot.className = "milestone-dot";
+      dot.style.left = pct + "%";
 
-  const paraLines = {};
-  chunks.forEach(c => {
-    if (c.isWait) return;
-    if (!paraLines[c.paraIdx]) paraLines[c.paraIdx] = 0;
-    paraLines[c.paraIdx]++;
-  });
+      const label = document.createElement("div");
+      label.className = "milestone-label " + (i % 2 === 0 ? "above" : "below");
+      label.style.left = pct + "%";
+      label.textContent = title;
 
-  Object.keys(paraLines).sort((a,b) => a-b).forEach(pi => {
-    const wrap = document.createElement("div");
-    wrap.className = "pi-para";
-    for (let l = 0; l < paraLines[pi]; l++) {
-      const seg = document.createElement("div");
-      seg.className = "pi-line";
-      seg.dataset.para = pi;
-      seg.dataset.line = l;
-      wrap.appendChild(seg);
-    }
-    container.appendChild(wrap);
-  });
-}
-
-function updateParaIndex() {
-  const c = chunks[idx];
-  document.querySelectorAll(".pi-line").forEach(seg => {
-    const sp = +seg.dataset.para;
-    const sl = +seg.dataset.line;
-    if (!c || c.isWait) { seg.className = "pi-line"; return; }
-    const cp = c.paraIdx, cl = c.lineIdx;
-    if (sp < cp || (sp === cp && sl < cl))      seg.className = "pi-line done";
-    else if (sp === cp && sl === cl)             seg.className = "pi-line active";
-    else                                         seg.className = "pi-line ahead";
-  });
-}
-
-// ════════════════════════════════════
-//  BACKGROUND WARM  (Change 2)
-// ════════════════════════════════════
-function updateBackground() {
-  const c = chunks[idx];
-  if (!c || c.isWait || c.totalLines <= 1) {
-    document.body.style.background = "#0f0f0f";
-    wordBox.style.background       = "#1a1a1a";
-    wordBox.style.borderColor      = "#2a2a2a";
-    return;
+      wrap.appendChild(label);
+      wrap.appendChild(dot);
+    });
   }
-  const t = c.lineIdx / (c.totalLines - 1); // 0 → 1
-  // body: dark grey → warm dark brown
-  const bR = Math.round(15 + t * 14), bG = Math.round(15 + t * 10), bB = Math.round(15 - t * 2);
-  document.body.style.background = `rgb(${bR},${bG},${bB})`;
-  // box: #1a1a1a → slightly warm
-  const xR = Math.round(26 + t * 14), xG = Math.round(26 + t * 8), xB = Math.round(26 - t * 6);
-  wordBox.style.background  = `rgb(${xR},${xG},${xB})`;
-  wordBox.style.borderColor = t > 0.55 ? "#3d3020" : "#2a2a2a";
-}
 
-// ════════════════════════════════════
-//  RENDER
-// ════════════════════════════════════
-function render() {
-  [-2,-1,0,1,2].forEach((offset, i) => {
-    const ci = idx + offset;
-    if (ci < 0 || ci >= chunks.length) {
-      rows[i].textContent      = "\u00a0";
-      rows[i].style.visibility = "hidden";
-      return;
-    }
-    rows[i].style.visibility = "visible";
-    const ch = chunks[ci];
-    if (i === 2) { // active slot
-      rows[i].textContent = ch.isWait ? WAIT_TEXT : ch.text;
-      rows[i].className   = "chunk-row " + (ch.isWait ? "wait-active" : "active");
-    } else {
-      rows[i].textContent = ch.isWait ? "· · ·" : ch.text;
-      rows[i].className   = "chunk-row " + (ch.isWait ? (Math.abs(offset)===1 ? "wait-near" : "far") : rowKeys[i]);
-    }
+  function render() {
+    const wordsEl = document.getElementById("words");
+    const counter = document.getElementById("counter");
+    const bar = document.getElementById("progress-bar");
+    const restartBtn = document.getElementById("restart-btn");
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+
+    wordsEl.classList.add("fade");
+    setTimeout(() => {
+      const block = blocks[idx];
+
+      // Build HTML: title + bullet list
+      let html = `<div class="block-title">${escHtml(block.title)}</div>`;
+      if (block.bullets.length > 0) {
+        html += `<ul class="block-bullets">`;
+        for (const b of block.bullets) {
+          html += `<li><span class="bullet-num">${b.num}.</span><div>`;
+          html += escHtml(b.text);
+          if (b.subItems && b.subItems.length > 0) {
+            html += `<ul class="sub-items">`;
+            for (const s of b.subItems) {
+              html += `<li>${escHtml(s)}</li>`;
+            }
+            html += `</ul>`;
+          }
+          html += `</div></li>`;
+        }
+        html += `</ul>`;
+      }
+      wordsEl.innerHTML = html;
+      wordsEl.classList.remove("fade");
+    }, 150);
+
+    const pct = blockPcts.length > 0 ? Math.round(blockPcts[idx]) : Math.round(((idx + 1) / blocks.length) * 100);
+    bar.style.width = pct + "%";    counter.textContent = (idx + 1) + " / " + blocks.length;
+
+    const atEnd = idx === blocks.length - 1;
+    restartBtn.style.display = atEnd ? "block" : "none";
+    if (prevBtn) prevBtn.disabled = idx === 0;
+    if (nextBtn) nextBtn.disabled = atEnd;
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  function go(dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= blocks.length) return;
+    idx = newIdx;
+    render();
+  }
+
+  function restart() {
+    idx = 0;
+    render();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (blocks.length === 0) return;
+    if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+    if (e.key === "ArrowLeft")  { e.preventDefault(); go(-1); }
+    if (e.key === "ArrowDown")  { e.preventDefault(); rotateBullets(1); }
+    if (e.key === "ArrowUp")    { e.preventDefault(); rotateBullets(-1); }
   });
 
-  // Note
-  const c = chunks[idx];
-  document.getElementById("note-text").textContent =
-    (c && !c.isWait && c.note) ? c.note : "";
-
-  // Progress
-  const pct = Math.round(((idx+1) / chunks.length) * 100);
-  document.getElementById("progress-bar").style.width = pct + "%";
-  document.getElementById("counter").textContent = (idx+1) + " / " + chunks.length;
-
-  const atEnd = idx === chunks.length - 1;
-  document.getElementById("restart-btn").style.display = atEnd ? "block" : "none";
-  const pb = document.getElementById("prev-btn");
-  const nb = document.getElementById("next-btn");
-  if (pb) pb.disabled = (idx === 0);
-  if (nb) nb.disabled = atEnd;
-
-  updateParaIndex();
-  updateBackground();
-}
-
-// ════════════════════════════════════
-//  NAV
-// ════════════════════════════════════
-function go(dir) {
-  const n = idx + dir;
-  if (n < 0 || n >= chunks.length) return;
-  idx = n;
-  render();
-  scheduleSave();
-}
-
-function restart() { idx = 0; render(); scheduleSave(); }
-
-document.addEventListener("keydown", e => {
-  if (!chunks.length) return;
-  if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
-  if (e.key === "ArrowLeft")  { e.preventDefault(); go(-1); }
-});
-
-// ════════════════════════════════════
-//  START
-// ════════════════════════════════════
-function startReading() {
-  if (!chunks.length) return;
-  document.getElementById("start-screen").style.display = "none";
-  document.getElementById("reader-screen").style.display = "flex";
-  document.getElementById("para-index").style.display = "flex";
-  buildParaIndex();
-  render();
-}
-
-function setStatus(msg, isError) {
-  const el = document.getElementById("status");
-  el.textContent = msg;
-  el.className   = isError ? "error" : "";
-}
+  function rotateBullets(dir) {
+    const block = blocks[idx];
+    if (!block || block.bullets.length < 2) return;
+    if (dir === 1) {
+      // rotate down: first goes to last → 1,2,3,4 becomes 2,3,4,1
+      block.bullets.push(block.bullets.shift());
+    } else {
+      // rotate up: last comes to first → 1,2,3,4 becomes 4,1,2,3
+      block.bullets.unshift(block.bullets.pop());
+    }
+    render();
+  }
 </script>
 </body>
 </html>
