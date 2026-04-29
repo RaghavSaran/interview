@@ -44,9 +44,16 @@
     /* ── Reader screen ── */
     #reader-screen { display: none; width: 100%; flex-direction: column; align-items: center; gap: 2rem; }
 
-    /* ── Karaoke box ── */
-    #word-box {
+    /* ── Karaoke box + preview layout ── */
+    #box-row {
       width: 100%;
+      display: flex;
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    #word-box {
+      flex: 3;
       min-height: 260px;
       display: flex;
       flex-direction: column;
@@ -58,6 +65,80 @@
       overflow-y: auto;
       max-height: 420px;
     }
+
+    #preview-box {
+      flex: 1;
+      min-height: 260px;
+      max-height: 420px;
+      display: flex;
+      flex-direction: column;
+      background: #141414;
+      border: 1px solid #242424;
+      border-radius: 20px;
+      padding: 1.2rem 1.3rem;
+      overflow-y: auto;
+      opacity: 0.75;
+      position: relative;
+    }
+
+    #preview-box.empty { visibility: hidden; }
+
+    #preview-box .preview-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 0.6rem;
+    }
+
+    #preview-box .block-title {
+      font-size: 0.85rem;
+      margin-bottom: 0.6rem;
+    }
+
+    #preview-box .block-bullets li {
+      font-size: 0.78rem;
+      line-height: 1.45;
+      gap: 0.4rem;
+    }
+
+    #preview-box .block-bullets li .bullet-num {
+      font-size: 0.78rem;
+      min-width: 1rem;
+    }
+
+    #preview-box .sub-items li {
+      font-size: 0.68rem;
+      line-height: 1.4;
+    }
+
+    /* ── Preview width controls ── */
+    #preview-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: -0.5rem;
+    }
+    #preview-controls .ctrl-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #aaa;
+      font-size: 0.9rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    #preview-controls .ctrl-btn:hover { background: #252525; color: #fff; }
+    #preview-controls .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    #preview-controls .ctrl-label { letter-spacing: 0.05em; }
 
     #words {
       width: 100%;
@@ -275,6 +356,9 @@
     @media (hover: none) and (pointer: coarse) {
       #mobile-nav { display: flex; }
       #nav-hint { display: none; }
+      #box-row { flex-direction: column; }
+      #preview-box { min-height: 140px; max-height: 200px; }
+      #preview-controls { display: none; }
     }
   </style>
 </head>
@@ -292,7 +376,18 @@
 
   <!-- READER SCREEN -->
   <div id="reader-screen">
-    <div id="word-box"><div id="words"></div></div>
+    <div id="box-row">
+      <div id="word-box"><div id="words"></div></div>
+      <div id="preview-box">
+        <div class="preview-label">Up next</div>
+        <div id="preview-words"></div>
+      </div>
+    </div>
+    <div id="preview-controls">
+      <span class="ctrl-label">Preview width</span>
+      <button class="ctrl-btn" id="preview-minus" onclick="adjustPreview(-1)" title="Shrink preview">−</button>
+      <button class="ctrl-btn" id="preview-plus" onclick="adjustPreview(1)" title="Grow preview">+</button>
+    </div>
     <div id="progress-wrap"><div id="progress-bar"></div></div>
     <div id="counter"></div>
     <div id="nav-hint">
@@ -316,6 +411,7 @@
   let blockPcts = [];     // % progress bar fill for each block index
   let idx = 0;
   let lastRawText = "";
+  let lastNotesText = "";
   let karaokeRaw = "";
   let pendingBlocks = [];
   let pendingMilestones = [];
@@ -327,22 +423,8 @@
     el.className = isError ? "error" : "";
   }
 
-  function splitDoc(raw) {
-    const lines = raw.split(/\n/);
-    const splitIdx = lines.findIndex(l => parseLine(l).text === 'xxxx');
-    if (splitIdx === -1) return { karaoke: raw, notes: "" };
-    return {
-      karaoke: lines.slice(0, splitIdx).join("\n"),
-      notes: lines.slice(splitIdx + 1).join("\n").trim()
-    };
-  }
-
   function setNotesBox(text) {
-    const cleaned = text.split(/\n/)
-      .map(l => parseLine(l.trim()).text)
-      .filter(l => l.length > 0)
-      .join("\n");
-    document.getElementById("notes-box").textContent = cleaned;
+    document.getElementById("notes-box").textContent = text || "";
   }
 
   function parseLine(raw) {
@@ -379,7 +461,7 @@
         current.push({ level: 1, text });
       }
     }
-    if (current.length > 0) rawBlocks.push(current);    if (current.length > 0) rawBlocks.push(current);
+    if (current.length > 0) rawBlocks.push(current);
 
     const built = [];
     let totalWords = 0;
@@ -436,23 +518,24 @@
       if (!res.ok) throw new Error("Network error");
       const data = await res.json();
       const raw = data.text || "";
+      const notes = data.notesText || "";
       console.log("FULL RAW:\n", data.text);
-      const { karaoke, notes } = splitDoc(raw);
 
-      if (karaoke.trim().length === 0) {
+      if (raw.trim().length === 0) {
         btn.textContent = "Doc is empty";
         setStatus("The Google Doc has no content yet.", true);
         return;
       }
 
-      const { built, milestones, totalWords, cumulativeWordPcts } = buildBlocks(karaoke);
+      const { built, milestones, totalWords, cumulativeWordPcts } = buildBlocks(raw);
       blocks = built;
       milestonePcts = milestones;
       blockPcts = cumulativeWordPcts;
-      karaokeRaw = karaoke;
+      karaokeRaw = raw;
       lastRawText = raw;
+      lastNotesText = notes;
 
-      if (notes) setNotesBox(notes);
+      setNotesBox(notes);
 
       btn.textContent = "Start";
       btn.disabled = false;
@@ -474,21 +557,26 @@
         if (!res.ok) return;
         const data = await res.json();
         const raw = data.text || "";
-        if (raw === lastRawText) return;
+        const notes = data.notesText || "";
+        const mainChanged = raw !== lastRawText;
+        const notesChanged = notes !== lastNotesText;
+        if (!mainChanged && !notesChanged) return;
 
-        const { karaoke, notes } = splitDoc(raw);
         lastRawText = raw;
 
-        setNotesBox(notes);
+        if (notesChanged) {
+          lastNotesText = notes;
+          setNotesBox(notes);
+        }
 
-        if (karaoke !== karaokeRaw) {
-          const { built, milestones, cumulativeWordPcts } = buildBlocks(karaoke);
+        if (mainChanged && raw !== karaokeRaw) {
+          const { built, milestones, cumulativeWordPcts } = buildBlocks(raw);
           pendingBlocks = built;
           pendingMilestones = milestones;
           pendingBlockPcts = cumulativeWordPcts;
 
           const oldCount = karaokeRaw.split(/\s+/).filter(w => w.length > 0).length;
-          const newCount = karaoke.split(/\s+/).filter(w => w.length > 0).length;
+          const newCount = raw.split(/\s+/).filter(w => w.length > 0).length;
           const diff = newCount - oldCount;
           const label = diff === 0
             ? "New Content. Updated."
@@ -508,7 +596,7 @@
     blocks = pendingBlocks;
     milestonePcts = pendingMilestones;
     blockPcts = pendingBlockPcts;
-    karaokeRaw = splitDoc(lastRawText).karaoke;
+    karaokeRaw = lastRawText;
     pendingBlocks = [];
     pendingMilestones = [];
     pendingBlockPcts = [];
@@ -528,6 +616,7 @@
     document.getElementById("start-screen").style.display = "none";
     const rs = document.getElementById("reader-screen");
     rs.style.display = "flex";
+    applyPreviewRatio();
     renderMilestones();
     render();
   }
@@ -552,6 +641,8 @@
 
   function render() {
     const wordsEl = document.getElementById("words");
+    const previewEl = document.getElementById("preview-words");
+    const previewBox = document.getElementById("preview-box");
     const counter = document.getElementById("counter");
     const bar = document.getElementById("progress-bar");
     const restartBtn = document.getElementById("restart-btn");
@@ -561,28 +652,19 @@
     wordsEl.classList.add("fade");
     setTimeout(() => {
       const block = blocks[idx];
-
-      // Build HTML: title + bullet list
-      let html = `<div class="block-title">${escHtml(block.title)}</div>`;
-      if (block.bullets.length > 0) {
-        html += `<ul class="block-bullets">`;
-        for (const b of block.bullets) {
-          html += `<li><span class="bullet-num">${b.num}.</span><div>`;
-          html += escHtml(b.text);
-          if (b.subItems && b.subItems.length > 0) {
-            html += `<ul class="sub-items">`;
-            for (const s of b.subItems) {
-              html += `<li>${escHtml(s)}</li>`;
-            }
-            html += `</ul>`;
-          }
-          html += `</div></li>`;
-        }
-        html += `</ul>`;
-      }
-      wordsEl.innerHTML = html;
+      wordsEl.innerHTML = buildBlockHtml(block);
       wordsEl.classList.remove("fade");
     }, 150);
+
+    // Preview: render the next block (if any)
+    const nextBlock = blocks[idx + 1];
+    if (nextBlock) {
+      previewEl.innerHTML = buildBlockHtml(nextBlock);
+      previewBox.classList.remove("empty");
+    } else {
+      previewEl.innerHTML = "";
+      previewBox.classList.add("empty");
+    }
 
     const pct = blockPcts.length > 0 ? Math.round(blockPcts[idx]) : Math.round(((idx + 1) / blocks.length) * 100);
     bar.style.width = pct + "%";    counter.textContent = (idx + 1) + " / " + blocks.length;
@@ -591,6 +673,56 @@
     restartBtn.style.display = atEnd ? "block" : "none";
     if (prevBtn) prevBtn.disabled = idx === 0;
     if (nextBtn) nextBtn.disabled = atEnd;
+  }
+
+  function buildBlockHtml(block) {
+    let html = `<div class="block-title">${escHtml(block.title)}</div>`;
+    if (block.bullets.length > 0) {
+      html += `<ul class="block-bullets">`;
+      for (const b of block.bullets) {
+        html += `<li><span class="bullet-num">${b.num}.</span><div>`;
+        html += escHtml(b.text);
+        if (b.subItems && b.subItems.length > 0) {
+          html += `<ul class="sub-items">`;
+          for (const s of b.subItems) {
+            html += `<li>${escHtml(s)}</li>`;
+          }
+          html += `</ul>`;
+        }
+        html += `</div></li>`;
+      }
+      html += `</ul>`;
+    }
+    return html;
+  }
+
+  // ── Preview width control ──
+  // Ratio = main flex / preview flex. Larger ratio = narrower preview.
+  const PREVIEW_RATIO_MIN = 1.5;   // preview almost as wide as main
+  const PREVIEW_RATIO_MAX = 8;     // preview very thin
+  const PREVIEW_RATIO_STEP = 0.5;
+  let previewRatio = 3;            // default: main is 3× preview (1/3)
+
+  function applyPreviewRatio() {
+    const wordBox = document.getElementById("word-box");
+    const previewBox = document.getElementById("preview-box");
+    if (!wordBox || !previewBox) return;
+    wordBox.style.flex = previewRatio;
+    previewBox.style.flex = 1;
+    const minusBtn = document.getElementById("preview-minus");
+    const plusBtn = document.getElementById("preview-plus");
+    // "+" grows the preview → decreases ratio; "−" shrinks preview → increases ratio
+    if (plusBtn) plusBtn.disabled = previewRatio <= PREVIEW_RATIO_MIN + 1e-9;
+    if (minusBtn) minusBtn.disabled = previewRatio >= PREVIEW_RATIO_MAX - 1e-9;
+  }
+
+  function adjustPreview(dir) {
+    // dir = +1 means grow preview, -1 means shrink preview
+    previewRatio = Math.min(
+      PREVIEW_RATIO_MAX,
+      Math.max(PREVIEW_RATIO_MIN, previewRatio - dir * PREVIEW_RATIO_STEP)
+    );
+    applyPreviewRatio();
   }
 
   function escHtml(str) {
