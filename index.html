@@ -30,19 +30,8 @@
       gap: 2rem;
     }
 
-    /* ── Start screen ── */
-    #start-screen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1.5rem;
-      text-align: center;
-    }
-    #start-screen h1 { font-size: 2rem; font-weight: 300; letter-spacing: 0.08em; color: #e0e0e0; }
-    #start-screen p  { font-size: 1rem; color: #888; max-width: 360px; line-height: 1.6; }
-
     /* ── Reader screen ── */
-    #reader-screen { display: none; width: 100%; flex-direction: column; align-items: center; gap: 2rem; }
+    #reader-screen { display: flex; width: 100%; flex-direction: column; align-items: center; gap: 2rem; }
 
     /* ── Karaoke box + preview layout ── */
     #box-row {
@@ -297,45 +286,9 @@
       white-space: pre-wrap;
     }
 
-    /* ── Update button ── */
-    #update-btn {
-      display: none;
-      position: fixed;
-      top: 1.2rem;
-      right: 1.2rem;
-      padding: 0.6rem 1.2rem;
-      border-radius: 99px;
-      border: none;
-      background: #16a34a;
-      color: #fff;
-      font-size: 0.85rem;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      box-shadow: 0 2px 12px #16a34a55;
-      transition: background 0.2s, transform 0.1s;
-      z-index: 999;
-    }
-    #update-btn:hover { background: #15803d; }
-    #update-btn:active { transform: scale(0.96); }
-
-    /* ── Status / primary button ── */
-    #status { font-size: 0.9rem; color: #666; text-align: center; }
+    /* ── Status ── */
+    #status { font-size: 0.85rem; color: #666; text-align: center; }
     #status.error { color: #f87171; }
-
-    .btn-primary {
-      padding: 0.85rem 3rem;
-      border-radius: 99px;
-      border: none;
-      background: #333;
-      color: #666;
-      font-size: 1.1rem;
-      letter-spacing: 0.06em;
-      cursor: not-allowed;
-      transition: background 0.35s, color 0.35s, transform 0.1s;
-    }
-    .btn-primary.ready { background: #16a34a; color: #fff; cursor: pointer; }
-    .btn-primary.ready:hover { background: #15803d; }
-    .btn-primary.ready:active { transform: scale(0.97); }
 
     /* ── Mobile nav ── */
     #mobile-nav { display: none; gap: 1.5rem; }
@@ -363,16 +316,7 @@
   </style>
 </head>
 <body>
-<button id="update-btn" onclick="applyUpdate()">New content. Update?</button>
 <div id="app">
-
-  <!-- START SCREEN -->
-  <div id="start-screen">
-    <h1>Block Reader</h1>
-    <p>One block at a time. Navigate with your arrow keys.</p>
-    <button class="btn-primary" id="start-btn" onclick="startReading()" disabled>Checking…</button>
-    <div id="status"></div>
-  </div>
 
   <!-- READER SCREEN -->
   <div id="reader-screen">
@@ -399,6 +343,7 @@
       <button class="arrow-btn" id="next-btn" onclick="go(1)">&#8594;</button>
     </div>
     <button id="restart-btn" onclick="restart()">Start over</button>
+    <div id="status"></div>
     <div id="notes-box"></div>
   </div>
 
@@ -413,9 +358,6 @@
   let lastRawText = "";
   let lastNotesText = "";
   let karaokeRaw = "";
-  let pendingBlocks = [];
-  let pendingMilestones = [];
-  let pendingBlockPcts = [];
 
   function setStatus(msg, isError = false) {
     const el = document.getElementById("status");
@@ -504,13 +446,14 @@
     return { built, milestones, totalWords, cumulativeWordPcts };
   }
 
-  window.addEventListener("DOMContentLoaded", prefetch);
+  window.addEventListener("DOMContentLoaded", () => {
+    applyPreviewRatio();
+    const wordsEl = document.getElementById("words");
+    if (wordsEl) wordsEl.innerHTML = `<div class="block-title" style="color:#666">Loading…</div>`;
+    prefetch();
+  });
 
   async function prefetch() {
-    const btn = document.getElementById("start-btn");
-    btn.textContent = "Checking…";
-    btn.disabled = true;
-    btn.classList.remove("ready");
     setStatus("");
 
     try {
@@ -522,8 +465,9 @@
       console.log("FULL RAW:\n", data.text);
 
       if (raw.trim().length === 0) {
-        btn.textContent = "Doc is empty";
         setStatus("The Google Doc has no content yet.", true);
+        const wordsEl = document.getElementById("words");
+        if (wordsEl) wordsEl.innerHTML = `<div class="block-title" style="color:#666">Doc is empty</div>`;
         return;
       }
 
@@ -536,16 +480,17 @@
       lastNotesText = notes;
 
       setNotesBox(notes);
-
-      btn.textContent = "Start";
-      btn.disabled = false;
-      btn.classList.add("ready");
       setStatus(totalWords + " words · " + blocks.length + " blocks");
+
+      idx = 0;
+      renderMilestones();
+      render();
 
       startPolling();
     } catch (e) {
-      btn.textContent = "Could not load";
       setStatus("Failed to reach the Google Doc. Check the Apps Script URL.", true);
+      const wordsEl = document.getElementById("words");
+      if (wordsEl) wordsEl.innerHTML = `<div class="block-title" style="color:#f87171">Could not load</div>`;
       console.error(e);
     }
   }
@@ -570,53 +515,49 @@
         }
 
         if (mainChanged && raw !== karaokeRaw) {
-          const { built, milestones, cumulativeWordPcts } = buildBlocks(raw);
-          pendingBlocks = built;
-          pendingMilestones = milestones;
-          pendingBlockPcts = cumulativeWordPcts;
-
-          const oldCount = karaokeRaw.split(/\s+/).filter(w => w.length > 0).length;
-          const newCount = raw.split(/\s+/).filter(w => w.length > 0).length;
-          const diff = newCount - oldCount;
-          const label = diff === 0
-            ? "New Content. Updated."
-            : diff > 0
-              ? `New Content. ${diff} extra words.`
-              : `New Content. ${Math.abs(diff)} less words.`;
-
-          const updateBtn = document.getElementById("update-btn");
-          updateBtn.textContent = label;
-          updateBtn.style.display = "block";
+          applyNewContent(raw);
         }
       } catch (_) {}
-    }, 1500);
+    }, 1000);
   }
 
-  function applyUpdate() {
-    blocks = pendingBlocks;
-    milestonePcts = pendingMilestones;
-    blockPcts = pendingBlockPcts;
-    karaokeRaw = lastRawText;
-    pendingBlocks = [];
-    pendingMilestones = [];
-    pendingBlockPcts = [];
-    document.getElementById("update-btn").style.display = "none";
-
-    const readerVisible = document.getElementById("reader-screen").style.display === "flex";
-    if (readerVisible) {
-      idx = Math.min(idx, blocks.length - 1);
-      renderMilestones();
-      render();
+  // Apply new doc content immediately while keeping the user on the same
+  // block when possible. Strategy:
+  //   1. Remember the current block's title (and titles of previous blocks).
+  //   2. Rebuild blocks from the new raw text.
+  //   3. If the current block's title still exists, jump idx to it.
+  //   4. Otherwise, walk backward through the previously-seen titles and
+  //      land on the most recent one that still exists. This means if
+  //      block 7 was deleted from 10 blocks, we land on what was block 6.
+  //   5. If none of the previous titles survive, clamp to the last block.
+  function applyNewContent(raw) {
+    const { built, milestones, cumulativeWordPcts } = buildBlocks(raw);
+    if (built.length === 0) {
+      // Doc became empty — keep previous render; nothing useful to show.
+      karaokeRaw = raw;
+      return;
     }
-  }
 
-  function startReading() {
-    if (blocks.length === 0) return;
-    idx = 0;
-    document.getElementById("start-screen").style.display = "none";
-    const rs = document.getElementById("reader-screen");
-    rs.style.display = "flex";
-    applyPreviewRatio();
+    // Snapshot prior titles in order so we can find the best anchor.
+    const priorTitles = blocks.map(b => b.title);
+    const anchorIdx = Math.min(idx, priorTitles.length - 1);
+
+    blocks = built;
+    milestonePcts = milestones;
+    blockPcts = cumulativeWordPcts;
+    karaokeRaw = raw;
+
+    // Resolve new idx: look for current title, then walk back.
+    let newIdx = -1;
+    for (let i = anchorIdx; i >= 0; i--) {
+      const title = priorTitles[i];
+      const match = blocks.findIndex(b => b.title === title);
+      if (match !== -1) { newIdx = match; break; }
+    }
+    if (newIdx === -1) newIdx = Math.min(idx, blocks.length - 1);
+    if (newIdx < 0) newIdx = 0;
+    idx = newIdx;
+
     renderMilestones();
     render();
   }
