@@ -468,6 +468,7 @@
         setStatus("The Google Doc has no content yet.", true);
         const wordsEl = document.getElementById("words");
         if (wordsEl) wordsEl.innerHTML = `<div class="block-title" style="color:#666">Doc is empty</div>`;
+        startPolling();
         return;
       }
 
@@ -492,6 +493,7 @@
       const wordsEl = document.getElementById("words");
       if (wordsEl) wordsEl.innerHTML = `<div class="block-title" style="color:#f87171">Could not load</div>`;
       console.error(e);
+      startPolling();
     }
   }
 
